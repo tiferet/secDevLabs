@@ -1,20 +1,10 @@
 # coding: utf-8
 
-from distutils.log import error
-from secrets import token_urlsafe
 from flask import Flask, request, make_response, render_template, redirect, flash
 import uuid
-import os
-import jwt
-from datetime import datetime, timedelta
+import pickle
+import base64
 app = Flask(__name__)
-
-admin_user = os.environ.get("ADMIN_USER")
-admin_pass = os.environ.get("ADMIN_PASS")
-jwt_secret_key = os.environ.get("JWT_SECRET_KEY")
-
-
-print(admin_user, admin_pass, flush=True)
 
 
 @app.route("/")
@@ -23,34 +13,17 @@ def ola():
 
 @app.route("/admin", methods=['GET','POST'])
 def login():
-
-    
-
     if request.method == 'POST':
         username = request.values.get('username')
         password = request.values.get('password')
     
-        if username == admin_user and password == admin_pass:
-            session_id = str(uuid.uuid4().hex)
-
-            claims = {
-                "username": username,
-                "admin": True,
-                "sessionId": session_id,
-                "exp": datetime.utcnow() + timedelta(seconds = 30)
-
-            }
-
-            try:
-                token = jwt.encode(claims, jwt_secret_key, algorithm = "HS256")
-            except :
-
-                return "Error!\n"
-
-
-
+        if username == "admin" and password == "admin":
+            token = str(uuid.uuid4().hex)
+            cookie = { "username":username, "admin":True, "sessionId":token }
+            pickle_resultado = pickle.dumps(cookie)
+            encodedSessionCookie = base64.b64encode(pickle_resultado)
             resp = make_response(redirect("/user"))
-            resp.set_cookie("sessionId", token)
+            resp.set_cookie("sessionId", encodedSessionCookie)
             return resp
 
         else:
@@ -61,23 +34,13 @@ def login():
 
 @app.route("/user", methods=['GET'])
 def userInfo():
-   
-    token = request.cookies.get("sessionId", "")
+    cookie = request.cookies.get("sessionId")
+    if cookie == None:
+        return "Não Autorizado!"
+    cookie = pickle.loads(base64.b64decode(cookie))
+
+    return render_template('user.html')
     
-            
-    try:
-
-        decoded_token = jwt.decode(token, jwt_secret_key, algorithms = "HS256")
-
-        print(decoded_token, flush=True)
-       
-        if decoded_token["admin"] != True:
-            return "Não Autorizado!"
-
-    except:
-        return render_template('/admin')
-                
-    return render_template("user.html")
 
 
 
